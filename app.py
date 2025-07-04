@@ -50,7 +50,9 @@ def fetch_and_translate():
     return articles[:10]
 
 # --- Flaskアプリ起動 ---
-app = Flask(__name__)
+@app.route("/")
+def index():
+    return "Welcome to News Translation App"
 
 @app.route("/api/news")
 def get_news():
