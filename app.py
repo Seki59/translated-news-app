@@ -1,16 +1,11 @@
 import feedparser
-import os
+from openai import OpenAI
+import datetime
 from flask import Flask, jsonify
-import openai
+import os
 
-# --- Flaskアプリ初期化 ---
-app = Flask(__name__)
-
-# --- OpenAI APIキーを環境変数から取得 ---
-openai.api_key = os.getenv("OPENAI_API_KEY")
-
-if not openai.api_key:
-    raise Exception("環境変数 OPENAI_API_KEY が設定されていません")
+# --- OpenAIクライアント初期化 ---
+client = OpenAI()
 
 # --- ニュースRSS URL一覧 ---
 RSS_FEEDS = {
@@ -19,10 +14,10 @@ RSS_FEEDS = {
     "APNews": "https://apnews.com/rss"
 }
 
-# --- 英語→日本語 翻訳関数 ---
+# --- 英語→日本語 翻訳関数（ChatGPT API使用） ---
 def translate_to_japanese(text):
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # または "gpt-4o"
             messages=[
                 {"role": "system", "content": "You are a translator. Translate the following English text into natural Japanese."},
@@ -30,7 +25,7 @@ def translate_to_japanese(text):
             ],
             temperature=0.2
         )
-        return response["choices"][0]["message"]["content"]
+        return response.choices[0].message.content
     except Exception as e:
         return f"[翻訳エラー]: {e}"
 
@@ -39,7 +34,7 @@ def fetch_and_translate():
     articles = []
     for source, url in RSS_FEEDS.items():
         feed = feedparser.parse(url)
-        for entry in feed.entries[:10]:
+        for entry in feed.entries[:10]:  # 各サイトから最大10記事
             translated_title = translate_to_japanese(entry.title)
             translated_summary = translate_to_japanese(entry.summary) if hasattr(entry, "summary") else ""
             articles.append({
@@ -50,22 +45,22 @@ def fetch_and_translate():
                 "link": entry.link,
                 "published": entry.get("published", "")
             })
-    # 日付順にソート（新しいもの順）
+    # 日付順にソート（≒人気順の代用）
     articles.sort(key=lambda x: x['published'], reverse=True)
     return articles[:10]
 
-# --- ルートエンドポイント ---
+# --- Flaskアプリ起動 ---
+app = Flask(__name__)
+
 @app.route("/")
 def index():
     return "Welcome to News Translation App"
 
-# --- ニュースAPIエンドポイント ---
 @app.route("/api/news")
 def get_news():
     data = fetch_and_translate()
     return jsonify(data)
 
-# --- アプリ起動 ---
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Renderの環境変数PORT取得（なければ5000）
+    port = int(os.environ.get("PORT", 5000))  # Renderなどの環境変数PORTを取得、無ければ5000
     app.run(host="0.0.0.0", port=port, debug=True)
