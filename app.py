@@ -49,7 +49,9 @@ def fetch_and_translate():
     articles.sort(key=lambda x: x['published'], reverse=True)
     return articles[:10]
 
-# --- Flaskアプリ起動 ---
+# --- Flaskアプリ定義 ---
+app = Flask(__name__)
+
 @app.route("/")
 def index():
     return "Welcome to News Translation App"
@@ -59,6 +61,7 @@ def get_news():
     data = fetch_and_translate()
     return jsonify(data)
 
+# --- アプリ起動 ---
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Renderの環境変数PORTを取得、無ければ5000
+    port = int(os.environ.get("PORT", 5000))  # Renderが提供するPORTを使用
     app.run(host="0.0.0.0", port=port, debug=True)
