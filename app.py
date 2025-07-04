@@ -1,11 +1,10 @@
 import feedparser
-import openai
-import datetime
-from flask import Flask, jsonify
 import os
+from flask import Flask, jsonify
+from openai import OpenAI  # v1対応
 
 # --- ChatGPT APIキー（環境変数から取得） ---
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # --- ニュースRSS URL一覧 ---
 RSS_FEEDS = {
@@ -17,7 +16,7 @@ RSS_FEEDS = {
 # --- 英語→日本語 翻訳関数（ChatGPT API使用） ---
 def translate_to_japanese(text):
     try:
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # または "gpt-4o"
             messages=[
                 {"role": "system", "content": "You are a translator. Translate the following English text into natural Japanese."},
@@ -25,7 +24,7 @@ def translate_to_japanese(text):
             ],
             temperature=0.2
         )
-        return response["choices"][0]["message"]["content"]
+        return response.choices[0].message.content
     except Exception as e:
         return f"[翻訳エラー]: {e}"
 
@@ -34,7 +33,7 @@ def fetch_and_translate():
     articles = []
     for source, url in RSS_FEEDS.items():
         feed = feedparser.parse(url)
-        for entry in feed.entries[:10]:  # 各サイトから最大10記事
+        for entry in feed.entries[:10]:
             translated_title = translate_to_japanese(entry.title)
             translated_summary = translate_to_japanese(entry.summary) if hasattr(entry, "summary") else ""
             articles.append({
@@ -45,7 +44,6 @@ def fetch_and_translate():
                 "link": entry.link,
                 "published": entry.get("published", "")
             })
-    # 日付順にソート（≒人気順の代用）
     articles.sort(key=lambda x: x['published'], reverse=True)
     return articles[:10]
 
@@ -63,5 +61,5 @@ def get_news():
 
 # --- アプリ起動 ---
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))  # Renderが提供するPORTを使用
+    port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port, debug=True)
